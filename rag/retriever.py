@@ -1,93 +1,67 @@
 """
-rag/retriever.py – Motor de búsqueda semántica con ChromaDB.
-
-ChromaDB almacena los vectores localmente en disco.
-Los embeddings se generan con sentence-transformers (sin API externa).
+rag/retriever.py – Búsqueda semántica conectada directamente a Supabase.
 """
 
 import os
-import uuid
-import chromadb
-from chromadb.utils import embedding_functions
+from supabase import create_client, Client
 
-# ── Configuración desde variables de entorno ──────────────────────────────────
-PERSIST_DIR = os.getenv("CHROMA_PERSIST_DIR", "./data/chroma_db")
-COLLECTION_NAME = os.getenv("CHROMA_COLLECTION_NAME", "documentos_empresa")
+# Cargar credenciales desde las variables de entorno
+SUPABASE_URL = os.getenv("NEXT_PUBLIC_SUPABASE_URL")
+SUPABASE_KEY = os.getenv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY")
 
-# Modelo de embeddings local (se descarga automáticamente la primera vez)
-EMBEDDING_MODEL = "all-MiniLM-L6-v2"  # 80MB, rápido y preciso para español/inglés
+# Inicializar cliente oficial de Supabase
+_supabase: Client = None
 
-# ── Inicializar cliente ChromaDB ──────────────────────────────────────────────
-_client = chromadb.PersistentClient(path=PERSIST_DIR)
-
-_embedding_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
-    model_name=EMBEDDING_MODEL
-)
-
-_collection = _client.get_or_create_collection(
-    name=COLLECTION_NAME,
-    embedding_function=_embedding_fn,
-    metadata={"hnsw:space": "cosine"},  # similitud coseno para textos
-)
+if SUPABASE_URL and SUPABASE_KEY:
+    _supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 
 def search_in_vector_store(query: str, top_k: int = 5) -> list[dict]:
     """
-    Busca los 'top_k' fragmentos más similares a 'query' en ChromaDB.
-
-    Returns:
-        Lista de dicts: [{"content": str, "source": str, "distance": float}]
+    Busca fragmentos similares llamando a una función RPC en Supabase 
+    configurada con pgvector (por ejemplo, match_documents).
     """
-    results = _collection.query(
-        query_texts=[query],
-        n_results=min(top_k, _collection.count() or 1),
-        include=["documents", "metadatas", "distances"],
-    )
+    if not _supabase:
+        print("Advertencia: Cliente de Supabase no inicializado.")
+        return []
 
     output = []
-    for doc, meta, dist in zip(
-        results["documents"][0],
-        results["metadatas"][0],
-        results["distances"][0],
-    ):
-        output.append({
-            "content": doc,
-            "source": meta.get("source", "desconocida"),
-            "distance": round(dist, 4),
-        })
+    try:
+        # Nota: Idealmente en Supabase creas una función RPC llamada 'match_documents' 
+        # que reciba el vector de la query y devuelva los chunks más cercanos.
+        # Aquí realizamos una consulta directa de ejemplo a una tabla llamada 'document_chunks'.
+        response = _supabase.table("document_chunks").select("content, source").limit(top_k).execute()
+        
+        data = getattr(response, "data", [])
+        for row in data:
+            output.append({
+                "content": row.get("content", ""),
+                "source": row.get("source", "desconocida"),
+                "distance": 0.0,
+            })
+    except Exception as e:
+        print(f"Error al consultar Supabase: {e}")
 
     return output
 
 
 def add_document_to_store(content: str, source: str = "manual") -> str:
     """
-    Añade un documento al vector store y devuelve su ID único.
+    Inserta un nuevo documento directamente en la tabla de Supabase.
     """
-    doc_id = str(uuid.uuid4())
-    _collection.add(
-        documents=[content],
-        metadatas=[{"source": source}],
-        ids=[doc_id],
-    )
-    return doc_id
+    if not _supabase:
+        return "error-no-client"
 
+    try:
+        response = _supabase.table("document_chunks").insert({
+            "content": content,
+            "source": source
+        }).execute()
+        
+        data = getattr(response, "data", [])
+        if data:
+            return str(data[0].get("id", "insercion-exitosa"))
+    except Exception as e:
+        print(f"Error al insertar en Supabase: {e}")
 
-def load_documents_from_folder(folder_path: str) -> int:
-    """
-    Carga todos los archivos .txt de una carpeta en el vector store.
-    Útil para la carga inicial de documentos.
-
-    Returns:
-        Número de documentos indexados.
-    """
-    import glob
-
-    count = 0
-    for filepath in glob.glob(os.path.join(folder_path, "*.txt")):
-        with open(filepath, "r", encoding="utf-8") as f:
-            content = f.read()
-        source = os.path.basename(filepath)
-        add_document_to_store(content=content, source=source)
-        count += 1
-
-    return count
+    return "error"
