@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "servidor_mcp_local": {
+      "command": "python",
+      "args": ["main.py"],
+      "cwd": "C:/Users/asbel/OneDrive/Desktop/General/Server_MCP",
+      "env": {
+        "PYTHONPATH": "C:/Users/asbel/OneDrive/Desktop/General/Server_MCP"
+      }
+    }
+  }
+}

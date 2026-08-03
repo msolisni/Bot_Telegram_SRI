@@ -1,0 +1,12 @@
+.env
+venv/
+__pycache__/
+*.pyc
+*.pyo
+data/chroma_db/
+*.egg-info/
+dist/
+.DS_Store
+data_sri/
+data_sri/
+data_sri/
