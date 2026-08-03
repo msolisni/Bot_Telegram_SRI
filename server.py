@@ -27,5 +27,8 @@ import tools.rag_tools        # noqa: F401  – registra search_documents
 import tools.agent_tools      # noqa: F401  – registra decide_action
 import tools.db_sri_tools     # noqa: F401  – registra query_invoice, query_ruc
 
+# ── EXPORTAR LA APLICACIÓN ASGI PARA UVICORN (RENDER) ─────────────────────────
+app = mcp.http_app()
+
 if __name__ == "__main__":
     mcp.run()
