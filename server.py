@@ -5,7 +5,7 @@ Aquí se crea la instancia de FastMCP y se registran
 todos los módulos de herramientas (tools).
 """
 
-from mcp import FastMCP
+from fastmcp import FastMCP
 from dotenv import load_dotenv
 
 # Carga las variables de entorno desde .env
